@@ -21,6 +21,8 @@ mongoose
     console.log(err);
   });
 
+  mongoose.set('strictQuery', false);
+
 app.use(cors());
 app.use(express.json());
 app.use("/api/auth", authRoute);

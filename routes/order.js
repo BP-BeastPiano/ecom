@@ -7,6 +7,8 @@ const {
 
 const router = require("express").Router();
 
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
 //CREATE
 
 router.post("/", async (req, res) => {
@@ -56,7 +58,7 @@ router.get("/find/:userId", verifyTokenAndAdmin, async (req, res) => {
   }
 });
 
-// //GET ALL
+//GET ALL
 
 router.get("/", verifyTokenAndAdmin, async (req, res) => {
   try {
@@ -67,37 +69,59 @@ router.get("/", verifyTokenAndAdmin, async (req, res) => {
   }
 });
 
-// GET MONTHLY INCOME
+// GET STATS 
 
-router.get("/income", verifyTokenAndAdmin, async (req, res) => {
-  const productId = req.query.pid;
+router.get("/stats", verifyTokenAndAdmin, async (req, res) => {
   const date = new Date();
-  const lastMonth = new Date(date.setMonth(date.getMonth() - 1));
-  const previousMonth = new Date(new Date().setMonth(lastMonth.getMonth() - 1));
+  const lastYear = new Date(date.setFullYear(date.getFullYear() - 1));
 
   try {
-    const income = await Order.aggregate([
-      {
-        $match: {
-          createdAt: { $gte: previousMonth },
-          ...(productId && {
-            products: { $elemMatch: { productId } },
-          }),
-        },
-      },
+    const data = await Order.aggregate([
+      { $match: { createdAt: { $gte: lastYear } } },
       {
         $project: {
           month: { $month: "$createdAt" },
-          sales: "$amount",
         },
       },
       {
         $group: {
           _id: "$month",
-          total: { $sum: "$sales" },
+          total: { $sum: 1 },
         },
       },
     ]);
+    res.status(200).json(data)
+  } catch (err) {
+    res.status(500).json(err);
+  }
+});
+
+// GET MONTHLY INCOME
+
+router.get("/income", verifyTokenAndAdmin, async (req, res) => {
+  const qMonth = req.query.sortmonth;
+  let income = 0;
+  const orders = await Order.find();
+  try {
+    if (qMonth === "lastmonth") {
+      orders.map((order) => {
+        if (new Date(order.createdAt).getMonth() === new Date().getMonth() - 1  && order.status === "complete") {
+          income = order.totalPrice + income;
+        }
+      })
+    } else if (qMonth === "thismonth"){
+      orders.map((order) => {
+        if (new Date(order.createdAt).getMonth() === new Date().getMonth()  && order.status === "complete") {
+          income = order.totalPrice + income;
+        }
+      })
+    } else if (qMonth !== "lastmonth" && qMonth !== "thismonth") {
+      orders.map((order) => {
+        if (order.status === "complete") {
+          income = order.totalPrice + income;
+        }
+      })
+    }
     res.status(200).json(income);
   } catch (err) {
     res.status(500).json(err);
